@@ -20,11 +20,13 @@ struct ptEntry
 //process control block
 struct PCB
 {
-	string name;
+	string name = "";
 	int size;
 	int base;
 	int limit;
-	list<ptEntry>* pageTable;//reference to pagetable of the process
+	//should be a reference to pagetable of the process
+	//but the table kept getting destroyed after exiting the scope so i put the whole table here
+	list<ptEntry> pageTable;
 };
 
 //TLB entry
@@ -42,65 +44,77 @@ int oldestIndex = 0;
 //Transition Lookaside Buffer
 deque<TLBEntry> TLB;
 
+
 int findEmptyFrame();
-void loadPage(list<ptEntry> & pageTable, string pname);
+void loadPage(PCB & pcb, string pname);
 int findPageVM(string pno, string pname);
 void TLBpush(string pname, string pno, int frameNo);
 bool TLBcheck(string pname, string pno);
+PCB getPCB(string pname);
 
 //load process in Main memory(RAM) 
 //creates PCB and pageTable
 void loadProcess(string pname)
 {
-	list<ptEntry> pageTable;
-	PCB pcb;
-	int index=0,frame;
 	char ch;
-	while (VM[index] != pname)
+	PCB pcb = getPCB(pname);
+	list<ptEntry> pageTable;
+	if(pcb.name==pname)
 	{
-		index++;
+		cout << "Process already running.." << endl;
 	}
-	frame = findEmptyFrame();
-	MM[0][frame] = pname;
-	MM[1][frame] = VM[index];
-	
-	pcb.name = pname;
-	pcb.pageTable = &pageTable;
-	PCBlist.push_back(pcb);
-
-	ptEntry entry;
-	entry.frameNo = frame;
-	entry.pageNo = VM[index];
-	entry.validBit = true;
-	index++;
-	pageTable.push_back(entry);
-	while (VM[index] != "-1")
+	else
 	{
-		ptEntry e;
-		e.pageNo = VM[index];
+		pageTable = pcb.pageTable;
+		cout << "Creating process" << endl;
+		
+		int index = 0, frame;
+		while (VM[index] != pname)
+		{
+			index++;
+		}
+		frame = findEmptyFrame();
+		MM[0][frame] = pname;
+		MM[1][frame] = VM[index];
+
+		pcb.name = pname;
+		//pcb.pageTable = pageTable;
+		
+
+		ptEntry entry;
+		entry.frameNo = frame;
+		entry.pageNo = VM[index];
+		entry.validBit = true;
 		index++;
-		pageTable.push_back(e);
+		pageTable.push_back(entry);
+		while (VM[index] != "-1")
+		{
+			ptEntry e;
+			e.pageNo = VM[index];
+			index++;
+			pageTable.push_back(e);
+		}
+		pcb.pageTable = pageTable;
+		PCBlist.push_back(pcb);
 	}
 	do
 	{
 		cout << "Do you want to load pages into the memory?? (y/n)"; cin >> ch;
 		if (ch == 'y')
 		{
-			loadPage(pageTable, pname);
-			cout << "Do you want to exit? (y/n) " << endl;
-			cin >> ch;
+			loadPage(pcb, pname);
 		}
-		else ch = 'y';
-	} while (ch != 'y');
+	} while (ch == 'y');
 }
-void loadPage(list<ptEntry> & pageTable,string pname)
+void loadPage(PCB & pcb,string pname)
 {
 	string pno;
-	for (list<ptEntry>::iterator it = pageTable.begin(); it != pageTable.end(); it++)//printing all the pages of the process
+	
+	for (list<ptEntry>::iterator it = pcb.pageTable.begin(); it != pcb.pageTable.end(); it++)//printing all the pages of the process
 	{
 		cout << it->pageNo << endl;
 	}
-	list<ptEntry>::iterator itr = pageTable.begin();
+	list<ptEntry>::iterator itr = pcb.pageTable.begin();
 	cout << "Enter Page No. you want to access: "; cin >> pno;
 	if (TLBcheck(pname,pno)==true)
 	{
@@ -108,7 +122,7 @@ void loadPage(list<ptEntry> & pageTable,string pname)
 	}
 	else
 	{
-		while (itr != pageTable.end() && itr->pageNo != pno)
+		while (itr != pcb.pageTable.end() && itr->pageNo != pno)
 		{
 			//cout << itr->pageNo << endl;
 			itr++;
@@ -136,6 +150,22 @@ void loadPage(list<ptEntry> & pageTable,string pname)
 		}
 	}
 }
+
+PCB getPCB(string pname)
+{
+	list<PCB>::iterator itr;
+	PCB pcb;
+	for (itr = PCBlist.begin(); itr != PCBlist.end(); itr++)
+	{
+		if (itr->name == pname)
+		{
+			pcb = *itr;
+			return pcb;
+		}
+	}
+	return pcb;
+}
+
 void TLBpush(string pname,string pno,int frameNo)
 {
 	TLBEntry buffer;
@@ -180,9 +210,9 @@ int FIFOreplacement()
 	string page = MM[0][oldestIndex];
 	list<PCB>::iterator itr;
 	for (itr = PCBlist.begin(); itr != PCBlist.end() && itr->name != pname; itr++);
-	list<ptEntry> *table = itr->pageTable;
+	list<ptEntry> table = itr->pageTable;
 	list<ptEntry>::iterator it;
-	for (it = table->begin(); it != table->end() && it->pageNo != page; it++);
+	for (it = table.begin(); it != table.end() && it->pageNo != page; it++);
 	it->frameNo = -1;
 	it->validBit = false;
 	MM[0][oldestIndex] = "-1";
@@ -253,9 +283,12 @@ void initializeMemory()
 	{
 		MM[1][i] = "-1";
 	}
+	PCB pcb;
+	PCBlist.push_back(pcb);
 }
 void printMemory()
 {
+	cout << endl;
 	cout << "printing virtual memory" << endl;
 	for (int i = 0; i < (MMsize * 2); i++)
 	{
@@ -268,12 +301,42 @@ void printMemory()
 		cout << MM[1][i] + " ";
 	}
 }
+void printProgramList()
+{
+	int i=0,j=0;
+	string pname= "P" + to_string(j);
+	while (i < MMsize * 2)
+	{
+		if (VM[i] == pname)
+		{
+			pname = "P" + to_string(j);
+			j++;
+			
+			cout << pname <<" " ;
+			pname = "P" + to_string(j);
+		}
+		i++;
+	}
+}
 int main()
 {
+	char choice;
+	string pname;
 	initializeMemory();
 	fillVM();
-	loadProcess("P2");
-	loadProcess("P1");
+	do {
+		cout<< flush;
+		system("CLS");
+		cout << "All the programms currently available" << endl;
+		printProgramList();
+		cout << endl << "Select a program to load" << endl;
+		cin >> pname;
+		loadProcess(pname);
+		
+		cout << "1. Switch process" << endl << "0. Exit" << endl;
+		cin >> choice;
+	}
+	while (choice != '0');
 	printMemory();
 	system("pause");
 }
