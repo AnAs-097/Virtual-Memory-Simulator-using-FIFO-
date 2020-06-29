@@ -9,4 +9,4 @@ just compile and run the code
 
 issues:
 i havent implemented any error or exception handling yet 
-this menas you have to specifically write page1 to load page 1 and it HAS to be in the virtual memory otherwise the code will break :)
+this means you have to specifically write page1 to load page 1 and it HAS to be in the virtual memory otherwise the code will break :)
