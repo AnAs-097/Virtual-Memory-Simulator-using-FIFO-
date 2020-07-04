@@ -2,10 +2,10 @@
 Operating system LAB final project: Virtual Memory Simulator
 
 this program uses FIFO for replacement of pages and also simulates TLB cache
-Context switching is implemented for fun
+it also simulates contex switching Context switching 
 
 How to use:
-just compile and run the code
+just compile and run the code read the issues below they are important
 
 issues:
 i havent implemented any error or exception handling yet 
